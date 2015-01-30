@@ -380,7 +380,8 @@ def collect_parameters(graph, params):
     single shared variable.
 
     >>> from blocks.filter import VariableFilter
-    >>> VariableFilter(roles=[PARAMETER])(new_cg.variables)
+    >>> var_filter = VariableFilter(roles=[PARAMETER])
+    >>> var_filter(new_cg.variables) # doctest: +SKIP
     [Reshape{1}.0, Reshape{1}.0, Reshape{2}.0, Reshape{2}.0]
 
     """
