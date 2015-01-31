@@ -10,6 +10,8 @@ from theano.gof import graph
 from theano.gof.sched import make_dependence_cmp, sort_apply_nodes
 from theano.sandbox.rng_mrg import MRG_RandomStreams
 
+from blocks import config
+from blocks.roles import add_role, AUXILIARY
 from blocks.utils import (is_graph_input, is_shared_variable, dict_union,
                           shared_floatx_zeros, shared_like)
 
@@ -157,39 +159,6 @@ class ComputationGraph(object):
                                                          value_holders)])
 
 
-def add_role(var, role):
-    r"""Add a role to a given Theano variable.
-
-    Parameters
-    ----------
-    var : Theano variable
-        The variable to assign the new role to.
-    role : :class:`VariableRole` instance
-
-    Notes
-    -----
-    Some roles are subroles of others (e.g. :const:`WEIGHTS` is a subrole
-    of :const:`PARAMETER`). This function will not add a role if a more
-    specific role has already been added. If you need to replace a role
-    with a parent role (e.g. replace :const:`WEIGHTS` with
-    :const:`PARAMETER`) you must do so manually.
-
-    Examples
-    --------
-    >>> from theano import tensor
-    >>> W = tensor.matrix()
-    >>> from blocks.bricks import WEIGHTS
-    >>> add_role(W, WEIGHTS)
-    >>> print(*W.tag.roles)
-    WEIGHTS
-
-    """
-    roles = getattr(var.tag, 'roles', [])
-    roles = [old_role for old_role in roles
-             if not isinstance(role, old_role.__class__)] + [role]
-    var.tag.roles = roles
-
-
 def add_annotation(var, annotation):
     annotations = getattr(var.tag, 'annotations', [])
     if any(old_annotation.__class__ == annotation.__class__
@@ -265,6 +234,7 @@ class Annotation(object):
         Examples
         --------
         >>> from blocks.bricks.base import application, Brick
+        >>> from blocks.roles import COST
         >>> from blocks.utils import shared_floatx_zeros
         >>> class Foo(Brick):
         ...     def _allocate(self):
@@ -301,7 +271,7 @@ class Annotation(object):
         self.auxiliary_variables.append(expression)
 
 
-def apply_noise(graph, variables, level, rng=None):
+def apply_noise(graph, variables, level, seed=None):
     """Add Gaussian noise to certain variable of a computation graph.
 
     Parameters
@@ -317,8 +287,9 @@ def apply_noise(graph, variables, level, rng=None):
         used.
 
     """
-    if not rng:
-        rng = MRG_RandomStreams(1)
+    if not seed:
+        seed = config.default_seed
+    rng = MRG_RandomStreams(seed)
     replace = {}
     for variable in variables:
         replace[variable] = (variable +
@@ -402,38 +373,3 @@ def collect_parameters(graph, params):
         new_param.tag = param.tag
         replacements[param] = new_param
     return graph.replace(replacements)
-
-
-class VariableRole(object):
-    def __str__(self):
-        return self.__class__.__name__[:-4].upper()
-
-
-class InputRole(VariableRole):
-    pass
-
-INPUT = InputRole()
-
-
-class OutputRole(VariableRole):
-    pass
-
-OUTPUT = OutputRole
-
-
-class CostRole(VariableRole):
-    pass
-
-COST = CostRole()
-
-
-class ParameterRole(VariableRole):
-    pass
-
-PARAMETER = ParameterRole()
-
-
-class AuxiliaryRole(VariableRole):
-    pass
-
-AUXILIARY = AuxiliaryRole()
