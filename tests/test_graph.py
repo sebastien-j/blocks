@@ -4,8 +4,12 @@ from numpy.testing import assert_allclose
 from theano import tensor
 from theano.sandbox.rng_mrg import MRG_RandomStreams
 
+from blocks.bricks import MLP, Sigmoid
 from blocks.bricks.base import Brick
-from blocks.graph import apply_noise, ComputationGraph
+from blocks.bricks.cost import SquaredError
+from blocks.filter import VariableFilter
+from blocks.graph import apply_noise, collect_parameters, ComputationGraph
+from blocks.roles import PARAMETER
 from tests.bricks.test_bricks import TestBrick
 
 floatX = theano.config.floatX
@@ -61,3 +65,25 @@ def test_apply_noise():
     assert_allclose(
         noised_cg.outputs[0].eval({x: 1., y: 1.}),
         2 + MRG_RandomStreams(1).normal(tuple()).eval())
+
+
+def test_collect():
+    x = tensor.matrix()
+    mlp = MLP(activations=[Sigmoid(), Sigmoid()], dims=[784, 100, 784],
+              use_bias=False)
+    cost = SquaredError().apply(x, mlp.apply(x))
+    cg = ComputationGraph(cost)
+    var_filter = VariableFilter(roles=[PARAMETER])
+    W1, W2 = var_filter(cg.variables)
+    for i, W in enumerate([W1, W2]):
+        W.set_value(numpy.ones_like(W.get_value()) * (i + 1))
+    new_cg = collect_parameters(cg, cg.shared_variables)
+    collected_params, = new_cg.shared_variables
+    assert numpy.all(collected_params.get_value()[:784 * 100] == 1.)
+    assert numpy.all(collected_params.get_value()[784 * 100:] == 2.)
+    assert collected_params.ndim == 1
+    W1, W2 = var_filter(new_cg.variables)
+    assert W1.eval().shape == (784, 100)
+    assert numpy.all(W1.eval() == 1.)
+    assert W2.eval().shape == (100, 784)
+    assert numpy.all(W2.eval() == 2.)
