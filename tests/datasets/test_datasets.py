@@ -6,7 +6,8 @@ from nose.tools import assert_raises
 
 from blocks.datasets import (
     CachedDataStream, ContainerDataset, DataStream,
-    DataStreamMapping, BatchDataStream, PaddingDataStream)
+    DataStreamMapping, BatchDataStream, PaddingDataStream,
+    DataStreamFilter)
 from blocks.datasets.mnist import MNIST
 from blocks.datasets.schemes import (BatchSizeScheme, ConstantScheme,
                                      SequentialScheme)
@@ -38,6 +39,14 @@ def test_data_stream_mapping():
         stream, lambda d: (2 * d[0],), add_sources=("doubled",))
     assert wrapper2.sources == ("data", "doubled")
     assert list(wrapper2.get_epoch_iterator()) == list(zip(data, data_doubled))
+
+
+def test_data_stream_filter():
+    data = [1, 2, 3]
+    data_filtered = [1, 3]
+    stream = ContainerDataset(data).get_default_stream()
+    wrapper = DataStreamFilter(stream, lambda d: d[0] % 2 == 1)
+    assert list(wrapper.get_epoch_iterator()) == list(zip(data_filtered))
 
 
 def test_sources_selection():
@@ -91,7 +100,7 @@ def test_data_driven_epochs():
     for i, epoch in zip(range(2), stream.iterate_epochs()):
         assert list(epoch) == epochs[i]
 
-    # test scheme reseting between epochs
+    # test scheme resetting between epochs
     class TestScheme(BatchSizeScheme):
 
         def get_request_iterator(self):

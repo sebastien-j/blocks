@@ -4,12 +4,13 @@ from numpy.testing import assert_allclose
 from theano import tensor
 from theano.sandbox.rng_mrg import MRG_RandomStreams
 
-from blocks.bricks import MLP, Sigmoid
+from blocks.bricks import Identity, MLP, Sigmoid
 from blocks.bricks.base import Brick
 from blocks.bricks.cost import SquaredError
 from blocks.filter import VariableFilter
 from blocks.graph import apply_noise, collect_parameters, ComputationGraph
 from blocks.roles import PARAMETER
+from blocks.initialization import Constant
 from tests.bricks.test_bricks import TestBrick
 
 floatX = theano.config.floatX
@@ -87,3 +88,14 @@ def test_collect():
     assert numpy.all(W1.eval() == 1.)
     assert W2.eval().shape == (100, 784)
     assert numpy.all(W2.eval() == 2.)
+
+
+def test_snapshot():
+    x = tensor.matrix('x')
+    linear = MLP([Identity(), Identity()], [10, 10, 10],
+                 weights_init=Constant(1), biases_init=Constant(2))
+    linear.initialize()
+    y = linear.apply(x)
+    cg = ComputationGraph(y)
+    snapshot = cg.get_snapshot(dict(x=numpy.zeros((1, 10), dtype=floatX)))
+    assert len(snapshot) == 14

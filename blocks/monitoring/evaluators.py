@@ -20,9 +20,9 @@ class AggregationBuffer(object):
 
     Parameters
     ----------
-    expressions : list
-        If a list of Theano variables. The variable names are used as
-        expression names. All the variables names must be different.
+    expressions : list of :class:`~tensor.TensorVariable`
+        The variable names are used as expression names. All the variables
+        names must be different.
     use_take_last : bool
         When ``True``, the :class:`TakeLast` aggregation scheme is used
         instead of :class:`_DataIndependent` for those expressions that
@@ -36,7 +36,7 @@ class AggregationBuffer(object):
         Accumulation updates of the aggregators.
     readout_expressions : dict
         Maps an aggregated variable into a readout expression.
-    input : list of Theano variables
+    input : list of :class:`~tensor.TensorVariable`
         The list of inputs needed for accumulation.
     input_names : list of str
         The name of the inputs needed for accumulation.
@@ -50,7 +50,8 @@ class AggregationBuffer(object):
         if len(self.expression_names) < len(self.expressions):
             raise ValueError(
                 "Expression variables should have different names")
-        self.inputs = ComputationGraph(self.expressions).inputs
+        self._computation_graph = ComputationGraph(self.expressions)
+        self.inputs = self._computation_graph.inputs
         self.input_names = [v.name for v in self.inputs]
 
         self._initialized = False
@@ -66,7 +67,7 @@ class AggregationBuffer(object):
         for v in self.expressions:
             logger.debug('Expression to evaluate: %s', v.name)
             if not hasattr(v.tag, 'aggregation_scheme'):
-                if ComputationGraph([v]).inputs == []:
+                if not self._computation_graph.has_inputs(v):
                     scheme = (TakeLast if self.use_take_last
                               else _DataIndependent)
                     logger.debug('Using %s aggregation scheme'
@@ -102,6 +103,7 @@ class AggregationBuffer(object):
             be out-sourced to `ComputationGraph` to deal with it.
 
         """
+        logger.debug("Compiling initialization and readout functions")
         if self.initialization_updates:
             self._initialize_fun = theano.function(
                 [], [], updates=self.initialization_updates)
@@ -110,6 +112,7 @@ class AggregationBuffer(object):
 
         self._readout_fun = theano.function(
             [], list(self.readout_expressions.values()))
+        logger.debug("Initialization and readout functions compiled")
 
     def initialize_aggregators(self):
         """Initialize the aggregators."""
@@ -145,8 +148,9 @@ class DatasetEvaluator(object):
     Parameters
     ----------
     expressions : dict or list
-        If a list of Theano variables. The variable names are used as
-        expression names. All the variables names must be different.
+        If a list of :class:`~tensor.TensorVariable`. The variable names
+        are used as expression names. All the variables names must be
+        different.
 
         Each variable can be tagged with an :class:`AggregationScheme` that
         specifies how the value can be computed for a data set by
@@ -190,7 +194,7 @@ class DatasetEvaluator(object):
 
         Parameters
         ----------
-        data_stream : instance of :class:`DataStream`
+        data_stream : instance of :class:`.DataStream`
             The data stream. Only the first epoch of data is used.
 
         Returns
